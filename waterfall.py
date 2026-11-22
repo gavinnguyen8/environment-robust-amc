@@ -1,3 +1,4 @@
+from collections import deque
 import numpy as np
 import time
 import matplotlib.pyplot as plt
@@ -16,8 +17,8 @@ tx_carrier_freq_Hz = 915e6      # center RF frequency for TX (Hz), 70 MHz to 6 G
 rx_carrier_freq_Hz = 915e6      # center RF frequency for RX (Hz), 70 MHz to 6 GHz
 tx_gain_dB = 30                 # TX gain in dB (0 to ~89.8 dB)
 rx_gain_dB = 30                 # RX gain in dB (0 to ~76 dB)
-num_tx_samples = 6000         # number of samples to transmit
-num_rx_samples = 6000         # number of samples to capture
+num_tx_samples = 7000         # number of samples to transmit
+num_rx_samples = 7000         # number of samples to capture
 
 # ---------------------------------------------------------------
 # Digital communication system parameters.
@@ -27,6 +28,7 @@ ts = 1 / fs  # sampling period (seconds per sample)
 sps = 10     # samples per data symbol
 T = ts * sps # symbol period (seconds per symbol)
 t = np.arange(num_tx_samples) / fs # time vector
+time_interval = num_tx_samples / fs
 
 # ---------------------------------------------------------------
 # Create transmit signals (2 Channels).
@@ -70,7 +72,8 @@ rx_streamer, rx_metadata, rx_cmd = signal_functions.create_rx_stream(usrp, rx_ch
 
 start = time.perf_counter()
 # Schedule synchronized burst transmission and reception using hardware timestamps
-tx_start = usrp.get_time_now() + 0.25      # schedule 1.0s in the future
+tx_start = usrp.get_time_now() + 1.0      # schedule 1.0s in the future
+print(tx_start)
 rx_start = tx_start + 0.005
 
 # Step 1: Send TX burst (queues to device FIFO and returns immediately)
@@ -102,36 +105,50 @@ rx_fft_1 = np.abs(np.fft.fftshift(np.fft.fft(rx_chan1)))
 f = np.linspace(-fs / 2, fs / 2, num_received)
 
 # ---------------------------------------------------------------
-# Plot spectral response.
+# Waterfall configuration
 # ---------------------------------------------------------------
-# fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 7), constrained_layout=True)
+max_history = 100        # Keep the latest 10 seconds
 
-# ax1.plot(f / 1e3, rx_fft_0, color="tab:blue")
-# ax1.set_xlabel("Frequency (kHz)")
-# ax1.set_ylabel("Magnitude")
-# ax1.set_title("FFT of Received Signal - RX Channel 0")
-# ax1.grid(True)
-
-# ax2.plot(f / 1e3, rx_fft_1, color="tab:orange")
-# ax2.set_xlabel("Frequency (kHz)")
-# ax2.set_ylabel("Magnitude")
-# ax2.set_title("FFT of Received Signal - RX Channel 1")
-# ax2.grid(True)
+waterfall_history_0 = deque(maxlen=max_history)
+waterfall_history_1 = deque(maxlen=max_history)
 
 # ---------------------------------------------------------------
-# Create waterfall data (one FFT sample for each RX channel).
+# Inside your acquisition / FFT processing loop:
 # ---------------------------------------------------------------
-waterfall_0 = rx_fft_0[np.newaxis, :]
-waterfall_1 = rx_fft_1[np.newaxis, :]
+
+# Save a copy of each new FFT result
+waterfall_history_0.append(rx_fft_0.copy())
+waterfall_history_1.append(rx_fft_1.copy())
 
 # ---------------------------------------------------------------
-# Plot waterfall.
+# Plot waterfall (call whenever you want to update the plot)
+# ---------------------------------------------------------------
+
+waterfall_0 = np.array(waterfall_history_0)
+waterfall_1 = np.array(waterfall_history_1)
+
+n_fft = waterfall_0.shape[0]
+
+# Elapsed time since the first FFT in the displayed buffer
+time_axis = np.arange(n_fft) * time_interval
+
+time_extent = [0, n_fft * time_interval]
+
+freq_extent = [f[0] / 1e3, f[-1] / 1e3]
+
+# ---------------------------------------------------------------
+# Plot
 # ---------------------------------------------------------------
 fig, (ax1, ax2) = plt.subplots(
-    2, 1, figsize=(9, 7), constrained_layout=True
+    2, 1, figsize=(10, 8), constrained_layout=True
 )
 
-extent = [f[0] / 1e3, f[-1] / 1e3, 0, 1]
+extent = [
+    freq_extent[0],
+    freq_extent[1],
+    time_extent[0],
+    time_extent[1]
+]
 
 im1 = ax1.imshow(
     waterfall_0,
@@ -140,8 +157,9 @@ im1 = ax1.imshow(
     extent=extent,
     cmap="viridis"
 )
+
 ax1.set_xlabel("Frequency (kHz)")
-ax1.set_ylabel("Time (FFT sample)")
+ax1.set_ylabel("Elapsed Time (seconds)")
 ax1.set_title("Waterfall - RX Channel 0")
 fig.colorbar(im1, ax=ax1, label="Magnitude")
 
@@ -152,8 +170,9 @@ im2 = ax2.imshow(
     extent=extent,
     cmap="viridis"
 )
+
 ax2.set_xlabel("Frequency (kHz)")
-ax2.set_ylabel("Time (FFT sample)")
+ax2.set_ylabel("Elapsed Time (seconds)")
 ax2.set_title("Waterfall - RX Channel 1")
 fig.colorbar(im2, ax=ax2, label="Magnitude")
 

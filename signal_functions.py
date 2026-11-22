@@ -80,3 +80,14 @@ def stream_rx(rx_streamer, rx_cmd, rx_start):
     '''
     rx_cmd.time_spec = rx_start        # begin capture 5 ms after TX burst start
     rx_streamer.issue_stream_cmd(rx_cmd)
+
+def fetch_rx(rx_streamer, rx_buffer, rx_metadata):
+    '''
+    Fetch captured RX samples
+    '''
+    num_received = int(rx_streamer.recv(rx_buffer, rx_metadata, 5.0))
+    if num_received == 0:
+        raise RuntimeError("No RX samples received.")
+    else:
+        print("RX samples received:", num_received)
+    return num_received

@@ -1,0 +1,18 @@
+{
+  "timestamp": "2026-11-21T17:39:21.747388",
+  "sample_rate_Hz": 1000000.0,
+  "rx_center_freq_Hz": 915000000.0,
+  "rx_gain_dB": 30,
+  "tx_center_freq_Hz": 915000000.0,
+  "tx_gain_dB": 30,
+  "tx_tone_freqs_Hz": [
+    100000.0,
+    200000.0
+  ],
+  "rx_channels": [
+    0,
+    1
+  ],
+  "num_samples_per_channel": 7000,
+  "dtype": "complex64 (float32 I, float32 Q interleaved in .cfile)"
+}
